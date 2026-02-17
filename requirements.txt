@@ -3,6 +3,7 @@ transformers>=4.30.0
 sentence-transformers>=2.2.0
 numpy>=1.24.0
 gTTS
+ffmpeg-python
 streamlit-mic-recorder
 SpeechRecognition
 pydub
