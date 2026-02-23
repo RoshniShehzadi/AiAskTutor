@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-import json
+
 from gtts import gTTS
 from io import BytesIO
 import difflib
@@ -303,7 +303,14 @@ def audio_to_text(audio_bytes: bytes) -> Optional[str]:
         print(f"❌ [DEBUG] Unexpected error in audio_to_text: {e}")
         import traceback
         traceback.print_exc()
-        st.error(f"Error processing audio: {str(e)}")
+        err_text = str(e).lower()
+        if "ffmpeg" in err_text:
+            st.error(
+                "Microphone processing needs ffmpeg on the server. "
+                "Please add `ffmpeg` to `packages.txt` and redeploy."
+            )
+        else:
+            st.error(f"Error processing audio: {str(e)}")
         return None
     finally:
         if tmp_file_path and os.path.exists(tmp_file_path):
@@ -361,13 +368,29 @@ with st.sidebar:
 # --- 2. DATA LOADING & LOCAL RETRIEVAL (Cached) ---
 @st.cache_data(show_spinner=False)
 def load_dataset():
-    print("🔵 [DEBUG] Step 2: Loading dataset from dataset.json")
+    print("🔵 [DEBUG] Step 2: Loading dataset from dataset.xlsx")
     try:
-        with open("dataset.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
+        import pandas as pd
+
+        df = pd.read_excel("dataset.xlsx")
+        df.columns = [str(col).strip().lower() for col in df.columns]
+
+        question_col = "question" if "question" in df.columns else ("q" if "q" in df.columns else None)
+        answer_col = "answer" if "answer" in df.columns else ("a" if "a" in df.columns else None)
+
+        if question_col is None or answer_col is None:
+            st.error("dataset.xlsx must contain either ('question','answer') or ('Q','A') columns.")
+            return []
+
+        df = df[[question_col, answer_col]].fillna("")
+        df.columns = ["question", "answer"]
+        data = df.to_dict(orient="records")
         return data
     except FileNotFoundError:
-        st.error("dataset.json not found!")
+        st.error("dataset.xlsx not found!")
+        return []
+    except ImportError:
+        st.error("Missing dependency to read Excel. Please install pandas and openpyxl.")
         return []
     except Exception as e:
         st.error(f"Failed to load dataset: {e}")
